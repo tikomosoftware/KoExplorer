@@ -68,3 +68,4 @@ $RECYCLE.BIN/
 # Application specific
 *.log
 KoExplorer_Debug.log
+build_output*.txt
