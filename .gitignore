@@ -69,3 +69,6 @@ $RECYCLE.BIN/
 *.log
 KoExplorer_Debug.log
 build_output*.txt
+
+# Distribution folder
+dist/

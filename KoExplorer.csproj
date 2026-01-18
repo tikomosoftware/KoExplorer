@@ -6,14 +6,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- <ApplicationIcon>app.ico</ApplicationIcon> -->
+    <ApplicationIcon>Resources\app-icon.ico</ApplicationIcon>
     <AssemblyName>KoExplorer</AssemblyName>
     <RootNamespace>KoExplorer</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>0.1.0-alpha</Version>
     <Authors>KoExplorer Team</Authors>
     <Product>KoExplorer - エクスプローラー風イメージビューアー</Product>
     <Description>Windows向けエクスプローラータイプの高速イメージビューアー</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\app-icon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />

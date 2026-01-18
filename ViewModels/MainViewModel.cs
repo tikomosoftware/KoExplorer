@@ -136,6 +136,21 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPreviewVisible = true; // プレビューエリアの表示状態
 
+    /// <summary>
+    /// デバッグモードかどうか
+    /// </summary>
+    public bool IsDebugMode
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+
     #endregion
 
     public MainViewModel(
@@ -938,7 +953,7 @@ public partial class MainViewModel : ObservableObject
     private void About()
     {
         MessageBox.Show(
-            "KoExplorer v1.0.0\n\nエクスプローラー風イメージビューアー\n\n© 2026 KoExplorer Team",
+            "KoExplorer v0.1.0-alpha\n\nエクスプローラー風イメージビューアー\n\n© 2026 KoExplorer Team",
             "バージョン情報",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

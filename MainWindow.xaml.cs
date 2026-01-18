@@ -19,6 +19,31 @@ public partial class MainWindow : Window
     private WindowStyle _previousWindowStyle;
     private ResizeMode _previousResizeMode;
 
+    /// <summary>
+    /// デバッグログを追加
+    /// </summary>
+    private void AddDebugLog(string message)
+    {
+#if DEBUG
+        Dispatcher.Invoke(() =>
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+            DebugLogTextBox.AppendText($"[{timestamp}] {message}\n");
+            DebugLogTextBox.ScrollToEnd();
+        });
+#endif
+    }
+
+    /// <summary>
+    /// デバッグログをクリア
+    /// </summary>
+    private void ClearDebugLog_Click(object sender, RoutedEventArgs e)
+    {
+#if DEBUG
+        DebugLogTextBox.Clear();
+#endif
+    }
+
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
@@ -382,5 +407,194 @@ public partial class MainWindow : Window
             _lastMousePosition = currentPosition;
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// 指定パスのTreeViewItemを展開・選択
+    /// </summary>
+    public void ExpandTreeToPath(string targetPath)
+    {
+        if (string.IsNullOrEmpty(targetPath))
+            return;
+
+        // TreeViewのルートノードから検索
+        foreach (var item in FolderTreeView.Items)
+        {
+            var container = FolderTreeView.ItemContainerGenerator.ContainerFromItem(item) as TreeViewItem;
+            if (container != null)
+            {
+                if (ExpandTreeViewItemToPath(container, targetPath))
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// フォルダを開くボタンクリック
+    /// </summary>
+    private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        // フォルダ選択ダイアログ
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "フォルダを選択",
+            CheckFileExists = false,
+            CheckPathExists = true,
+            FileName = "フォルダ選択"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var folderPath = Path.GetDirectoryName(dialog.FileName);
+        if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+        {
+            return;
+        }
+
+        // 左ペインのツリーを展開・選択するだけ
+        // → FolderTreeView_SelectedItemChanged が発火して右ペインも更新される
+        ExpandTreeToPath(folderPath);
+    }
+
+    /// <summary>
+    /// テストボタンクリック
+    /// </summary>
+    private void TestTreeButton_Click(object sender, RoutedEventArgs e)
+    {
+#if DEBUG
+        // テスト用パス
+        var testPath = @"H:\(01)写真データ";
+        
+        AddDebugLog("=== テスト開始 ===");
+        AddDebugLog($"対象パス: {testPath}");
+
+        if (DataContext is MainViewModel vm)
+        {
+            vm.StatusText = $"テスト開始: {testPath}";
+            AddDebugLog($"FolderTree.Count: {vm.FolderTree.Count}");
+        }
+
+        if (!Directory.Exists(testPath))
+        {
+            AddDebugLog($"❌ フォルダが存在しません: {testPath}");
+            if (DataContext is MainViewModel vm2)
+            {
+                vm2.StatusText = $"テスト失敗: フォルダが存在しません";
+            }
+            MessageBox.Show($"フォルダが存在しません:\n{testPath}", "テストエラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // ツリーを展開
+        ExpandTreeToPath(testPath);
+
+        if (DataContext is MainViewModel vm3)
+        {
+            vm3.StatusText = $"テスト完了: {testPath}";
+        }
+        
+        AddDebugLog("=== テスト完了 ===");
+#endif
+    }
+
+    /// <summary>
+    /// TreeViewItemを再帰的に展開して目的のパスを選択
+    /// </summary>
+    private bool ExpandTreeViewItemToPath(TreeViewItem treeViewItem, string targetPath)
+    {
+        if (treeViewItem.DataContext is FolderTreeNode node)
+        {
+            AddDebugLog($"チェック中: {node.Name} ({node.FullPath})");
+
+            // 完全一致
+            if (string.Equals(node.FullPath, targetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                AddDebugLog($"✅ 完全一致: {node.FullPath}");
+                treeViewItem.IsExpanded = true;
+                treeViewItem.IsSelected = true;
+                treeViewItem.BringIntoView();
+                return true;
+            }
+
+            // パスの途中（展開して子を検索）
+            if (!string.IsNullOrEmpty(node.FullPath))
+            {
+                // パス比較用の正規化
+                var nodePathForComparison = node.FullPath;
+                // ドライブルート（例: "C:\"）は既に \ で終わっているので追加しない
+                if (!nodePathForComparison.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                {
+                    nodePathForComparison += Path.DirectorySeparatorChar;
+                }
+
+                AddDebugLog($"比較: '{targetPath}' が '{nodePathForComparison}' で始まるか？");
+
+                if (targetPath.StartsWith(nodePathForComparison, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddDebugLog($"📂 部分一致（展開）: {node.FullPath}");
+                    
+                    // 展開
+                    treeViewItem.IsExpanded = true;
+                    
+                    // 子ノードを読み込む（遅延読み込み対応）
+                    LoadSubFolders(node);
+                    AddDebugLog($"子ノード数: {node.Children.Count}");
+                    
+                    // ItemContainerGeneratorを更新
+                    treeViewItem.UpdateLayout();
+
+                    // 子アイテムを検索
+                    int childContainerCount = 0;
+                    foreach (var childItem in treeViewItem.Items)
+                    {
+                        var childContainer = treeViewItem.ItemContainerGenerator.ContainerFromItem(childItem) as TreeViewItem;
+                        if (childContainer != null)
+                        {
+                            childContainerCount++;
+                            if (ExpandTreeViewItemToPath(childContainer, targetPath))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    
+                    if (childContainerCount == 0)
+                    {
+                        AddDebugLog($"⚠ 子コンテナが取得できない（Items={treeViewItem.Items.Count}）");
+                    }
+                }
+                else
+                {
+                    AddDebugLog($"❌ 一致しない");
+                }
+            }
+
+            // FullPathが空の場合（クイックアクセス、PCなど）、子を検索
+            if (string.IsNullOrEmpty(node.FullPath))
+            {
+                AddDebugLog($"📁 ルートノード展開: {node.Name}");
+                treeViewItem.IsExpanded = true;
+                treeViewItem.UpdateLayout();
+
+                foreach (var childItem in treeViewItem.Items)
+                {
+                    var childContainer = treeViewItem.ItemContainerGenerator.ContainerFromItem(childItem) as TreeViewItem;
+                    if (childContainer != null)
+                    {
+                        if (ExpandTreeViewItemToPath(childContainer, targetPath))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }
