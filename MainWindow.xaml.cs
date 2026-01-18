@@ -15,11 +15,161 @@ public partial class MainWindow : Window
 {
     private Point _lastMousePosition;
     private bool _isDragging;
+    private WindowState _previousWindowState;
+    private WindowStyle _previousWindowStyle;
+    private ResizeMode _previousResizeMode;
 
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;
+        
+        // ViewModelのIsFullScreenプロパティ変更を監視
+        viewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsFullScreen))
+            {
+                if (viewModel.IsFullScreen)
+                {
+                    EnterFullScreen();
+                }
+                else
+                {
+                    ExitFullScreen();
+                }
+            }
+        };
+        
+        // ウィンドウのContentRenderedイベントで初期サイズを設定
+        ContentRendered += (s, e) =>
+        {
+            if (ImageScrollViewer != null && DataContext is MainViewModel vm)
+            {
+                // レイアウトが完了した後にサイズを取得
+                Dispatcher.InvokeAsync(() =>
+                {
+                    vm.ViewportWidth = ImageScrollViewer.ActualWidth;
+                    vm.ViewportHeight = ImageScrollViewer.ActualHeight;
+                }, System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        };
+        
+        // DataGridとListBoxの選択変更イベントを購読
+        Loaded += (s, e) =>
+        {
+            if (FileDataGrid != null)
+            {
+                FileDataGrid.SelectionChanged += FileDataGrid_SelectionChanged;
+            }
+            
+            // すべてのListBoxに選択変更イベントを追加
+            if (ThumbnailListBox != null)
+            {
+                ThumbnailListBox.SelectionChanged += ListBox_SelectionChanged;
+            }
+            
+            // 他のListBoxも探して追加（名前が自動生成されている場合）
+            AddSelectionHandlerToListBoxes(this);
+            
+            // ScrollViewerのサイズ変更を監視
+            if (ImageScrollViewer != null)
+            {
+                // 初期サイズを設定
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.ViewportWidth = ImageScrollViewer.ActualWidth;
+                    vm.ViewportHeight = ImageScrollViewer.ActualHeight;
+                }
+                
+                ImageScrollViewer.SizeChanged += (sender, args) =>
+                {
+                    if (DataContext is MainViewModel vm2)
+                    {
+                        vm2.ViewportWidth = ImageScrollViewer.ActualWidth;
+                        vm2.ViewportHeight = ImageScrollViewer.ActualHeight;
+                    }
+                };
+            }
+        };
+    }
+
+    /// <summary>
+    /// フルスクリーンモードに入る
+    /// </summary>
+    private void EnterFullScreen()
+    {
+        _previousWindowState = WindowState;
+        _previousWindowStyle = WindowStyle;
+        _previousResizeMode = ResizeMode;
+
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        WindowState = WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// フルスクリーンモードを終了
+    /// </summary>
+    private void ExitFullScreen()
+    {
+        WindowStyle = _previousWindowStyle;
+        ResizeMode = _previousResizeMode;
+        WindowState = _previousWindowState;
+    }
+
+    /// <summary>
+    /// すべてのListBoxに選択変更イベントを追加
+    /// </summary>
+    private void AddSelectionHandlerToListBoxes(DependencyObject parent)
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            
+            if (child is ListBox listBox && listBox.Name.StartsWith("ThumbnailListBox"))
+            {
+                listBox.SelectionChanged -= ListBox_SelectionChanged; // 重複登録を防ぐ
+                listBox.SelectionChanged += ListBox_SelectionChanged;
+            }
+            
+            AddSelectionHandlerToListBoxes(child);
+        }
+    }
+
+    /// <summary>
+    /// ListBoxの選択変更イベント
+    /// </summary>
+    private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel && sender is ListBox listBox)
+        {
+            viewModel.SelectedItems.Clear();
+            foreach (var item in listBox.SelectedItems)
+            {
+                if (item is ThumbnailItem thumbnailItem)
+                {
+                    viewModel.SelectedItems.Add(thumbnailItem);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// DataGridの選択変更イベント
+    /// </summary>
+    private void FileDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel && sender is DataGrid dataGrid)
+        {
+            viewModel.SelectedItems.Clear();
+            foreach (var item in dataGrid.SelectedItems)
+            {
+                if (item is ThumbnailItem thumbnailItem)
+                {
+                    viewModel.SelectedItems.Add(thumbnailItem);
+                }
+            }
+        }
     }
 
     /// <summary>

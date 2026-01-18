@@ -150,8 +150,17 @@
                 <Path Data="M9,9V15H15V9M7,3H17A2,2 0 0,1 19,5V19A2,2 0 0,1 17,21H7A2,2 0 0,1 5,19V5A2,2 0 0,1 7,3Z" 
                       Fill="#424242" Stretch="Uniform" Width="16" Height="16"/>
             </Button>
+            <Button Command="{Binding FitToWidthCommand}" ToolTip="幅に合わせる (W)" Padding="8,6">
+                <Grid Width="16" Height="16">
+                    <Path Data="M3,7 L3,17 M21,7 L21,17" 
+                          Stroke="#424242" StrokeThickness="2" Stretch="Uniform"/>
+                    <Path Data="M7,12 L17,12 M7,10 L7,14 M17,10 L17,14" 
+                          Stroke="#0078D4" StrokeThickness="2" Stretch="Uniform"/>
+                </Grid>
+            </Button>
             <Button Command="{Binding ActualSizeCommand}" ToolTip="実寸表示 (1)" Padding="8,6">
-                <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold" Foreground="#424242"/>
+                <Path Data="M3,3H21V21H3V3M5,5V19H19V5H5M7,7H17V17H7V7Z" 
+                      Fill="#424242" Stretch="Uniform" Width="16" Height="16"/>
             </Button>
             <Separator/>
             <Button Command="{Binding ToggleFullScreenCommand}" ToolTip="フルスクリーン (F11)" Padding="8,6">
@@ -322,13 +331,14 @@
 
                 <!-- 詳細表示モード -->
                 <DataGrid Grid.Row="0" Grid.RowSpan="3"
+                          x:Name="FileDataGrid"
                           ItemsSource="{Binding ThumbnailItems}"
                           SelectedItem="{Binding SelectedThumbnail}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           GridLinesVisibility="None"
                           HeadersVisibility="Column"
-                          SelectionMode="Single"
+                          SelectionMode="Extended"
                           Background="White"
                           BorderThickness="0"
                           RowHeight="24"
@@ -416,16 +426,14 @@
                                           PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
                                 <Image x:Name="PreviewImage"
                                        Source="{Binding CurrentImageSource}"
-                                       Stretch="None"
+                                       Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                       Width="{Binding ImageDisplayWidth}"
+                                       Height="{Binding ImageDisplayHeight}"
                                        MouseLeftButtonDown="PreviewImage_MouseLeftButtonDown"
                                        MouseLeftButtonUp="PreviewImage_MouseLeftButtonUp"
                                        MouseMove="PreviewImage_MouseMove"
-                                       MouseWheel="PreviewImage_MouseWheel">
-                                    <Image.LayoutTransform>
-                                        <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}"/>
-                                    </Image.LayoutTransform>
-                                </Image>
+                                       MouseWheel="PreviewImage_MouseWheel"/>
                             </ScrollViewer>
 
                             <!-- エラー表示 -->
@@ -513,6 +521,7 @@
                                      x:Name="ThumbnailListBox"
                                      ItemsSource="{Binding ThumbnailItems}"
                                      SelectedItem="{Binding SelectedThumbnail}"
+                                     SelectionMode="Extended"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"
@@ -590,8 +599,10 @@
 
                             <!-- サムネイルリスト -->
                             <ListBox Grid.Row="1" 
+                                     x:Name="ThumbnailListBox2"
                                      ItemsSource="{Binding ThumbnailItems}"
                                      SelectedItem="{Binding SelectedThumbnail}"
+                                     SelectionMode="Extended"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"
@@ -669,8 +680,10 @@
 
                             <!-- サムネイルリスト -->
                             <ListBox Grid.Row="1" 
+                                     x:Name="ThumbnailListBox3"
                                      ItemsSource="{Binding ThumbnailItems}"
                                      SelectedItem="{Binding SelectedThumbnail}"
+                                     SelectionMode="Extended"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"

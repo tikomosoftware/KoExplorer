@@ -26,6 +26,22 @@ public partial class MainViewModel : ObservableObject
     private AppSettings _settings = new();
     private string _currentFolderPath = string.Empty; // 現在のフォルダパス
     private bool _isUpdatingSelection = false; // 選択更新中フラグ
+    
+    // ビューポートサイズ（ScrollViewerのサイズ）
+    private double _viewportWidth = 800.0;
+    private double _viewportHeight = 600.0;
+    
+    public double ViewportWidth
+    {
+        get => _viewportWidth;
+        set => SetProperty(ref _viewportWidth, value);
+    }
+    
+    public double ViewportHeight
+    {
+        get => _viewportHeight;
+        set => SetProperty(ref _viewportHeight, value);
+    }
 
     #region Properties
 
@@ -37,6 +53,14 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private ThumbnailItem? _selectedThumbnail;
+
+    // 複数選択されたアイテム
+    private ObservableCollection<ThumbnailItem> _selectedItems = new();
+    public ObservableCollection<ThumbnailItem> SelectedItems
+    {
+        get => _selectedItems;
+        set => SetProperty(ref _selectedItems, value);
+    }
 
     [ObservableProperty]
     private BitmapSource? _currentImageSource;
@@ -58,6 +82,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private double _zoomPercentage = 100.0;
+
+    [ObservableProperty]
+    private double _imageDisplayWidth = double.NaN; // NaNで自動サイズ
+
+    [ObservableProperty]
+    private double _imageDisplayHeight = double.NaN; // NaNで自動サイズ
 
     [ObservableProperty]
     private int _thumbnailSize = 128;
@@ -443,6 +473,7 @@ public partial class MainViewModel : ObservableObject
     {
         ZoomScale = Math.Min(ZoomScale * 1.25, 16.0);
         ZoomPercentage = ZoomScale * 100;
+        UpdateImageDisplaySize();
     }
 
     [RelayCommand]
@@ -450,6 +481,7 @@ public partial class MainViewModel : ObservableObject
     {
         ZoomScale = Math.Max(ZoomScale / 1.25, 0.1);
         ZoomPercentage = ZoomScale * 100;
+        UpdateImageDisplaySize();
     }
 
     [RelayCommand]
@@ -457,30 +489,98 @@ public partial class MainViewModel : ObservableObject
     {
         ZoomScale = 1.0;
         ZoomPercentage = 100.0;
+        UpdateImageDisplaySize();
+        StatusText = "実寸表示 (100%)";
     }
 
     [RelayCommand]
     private void FitToWindow()
     {
-        // ウィンドウにフィット（実装は簡易版）
-        ZoomScale = 1.0;
-        ZoomPercentage = 100.0;
+        // ウィンドウにフィット（スクロールバーが表示されないように）
+        if (CurrentImageSource == null)
+        {
+            StatusText = "画像が読み込まれていません";
+            return;
+        }
+
+        var imageWidth = CurrentImageSource.PixelWidth;
+        var imageHeight = CurrentImageSource.PixelHeight;
+        
+        if (imageWidth > 0 && imageHeight > 0 && ViewportWidth > 0 && ViewportHeight > 0)
+        {
+            var scaleX = ViewportWidth / imageWidth;
+            var scaleY = ViewportHeight / imageHeight;
+            var scale = Math.Min(scaleX, scaleY);
+            
+            ZoomScale = Math.Max(scale, 0.1);
+            ZoomPercentage = ZoomScale * 100;
+            UpdateImageDisplaySize();
+            StatusText = $"ウィンドウにフィット ({ZoomPercentage:F0}%)";
+        }
+        else
+        {
+            StatusText = $"フィット計算エラー: 画像={imageWidth}x{imageHeight}, ビューポート={ViewportWidth:F0}x{ViewportHeight:F0}";
+        }
     }
 
     [RelayCommand]
     private void FitToWidth()
     {
-        // 幅にフィット（実装は簡易版）
-        ZoomScale = 1.0;
-        ZoomPercentage = 100.0;
+        // 幅にフィット（横スクロールバーが表示されないように）
+        if (CurrentImageSource == null)
+        {
+            StatusText = "画像が読み込まれていません";
+            return;
+        }
+
+        var imageWidth = CurrentImageSource.PixelWidth;
+        
+        if (imageWidth > 0 && ViewportWidth > 0)
+        {
+            var scale = ViewportWidth / imageWidth;
+            ZoomScale = Math.Max(scale, 0.1);
+            ZoomPercentage = ZoomScale * 100;
+            UpdateImageDisplaySize();
+            StatusText = $"幅に合わせる ({ZoomPercentage:F0}%)";
+        }
+        else
+        {
+            StatusText = $"幅フィット計算エラー: 画像幅={imageWidth}, ビューポート幅={ViewportWidth:F0}";
+        }
     }
 
     [RelayCommand]
     private void FitToHeight()
     {
-        // 高さにフィット（実装は簡易版）
-        ZoomScale = 1.0;
-        ZoomPercentage = 100.0;
+        // 高さにフィット（縦スクロールバーが表示されないように）
+        if (CurrentImageSource == null) return;
+
+        var imageHeight = CurrentImageSource.PixelHeight;
+        
+        if (imageHeight > 0 && ViewportHeight > 0)
+        {
+            var scale = ViewportHeight / imageHeight;
+            ZoomScale = Math.Max(scale, 0.1);
+            ZoomPercentage = ZoomScale * 100;
+            UpdateImageDisplaySize();
+            StatusText = $"高さに合わせる ({ZoomPercentage:F0}%)";
+        }
+    }
+
+    /// <summary>
+    /// 画像の表示サイズを更新
+    /// </summary>
+    private void UpdateImageDisplaySize()
+    {
+        if (CurrentImageSource == null)
+        {
+            ImageDisplayWidth = double.NaN;
+            ImageDisplayHeight = double.NaN;
+            return;
+        }
+
+        ImageDisplayWidth = CurrentImageSource.PixelWidth * ZoomScale;
+        ImageDisplayHeight = CurrentImageSource.PixelHeight * ZoomScale;
     }
 
     #endregion
@@ -491,6 +591,7 @@ public partial class MainViewModel : ObservableObject
     private void ToggleFullScreen()
     {
         IsFullScreen = !IsFullScreen;
+        StatusText = IsFullScreen ? "フルスクリーンモード" : "通常モード";
     }
 
     [RelayCommand]
@@ -578,6 +679,14 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void DeleteImage()
     {
+        // 選択されたアイテムがある場合は複数削除
+        if (SelectedItems.Count > 0)
+        {
+            DeleteSelectedItems();
+            return;
+        }
+
+        // 選択がない場合は現在表示中の画像を削除（従来の動作）
         if (_internalImageIndex < 0 || _internalImageIndex >= _imageFiles.Count)
             return;
 
@@ -598,7 +707,11 @@ public partial class MainViewModel : ObservableObject
                     Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
 
                 _imageFiles.RemoveAt(_internalImageIndex);
-                ThumbnailItems.RemoveAt(_internalImageIndex);
+                var thumbnailItem = ThumbnailItems.FirstOrDefault(t => t.FilePath == filePath);
+                if (thumbnailItem != null)
+                {
+                    ThumbnailItems.Remove(thumbnailItem);
+                }
                 TotalImages = _imageFiles.Count;
 
                 if (_imageFiles.Count > 0)
@@ -619,6 +732,103 @@ public partial class MainViewModel : ObservableObject
             {
                 MessageBox.Show($"削除に失敗しました: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+    }
+
+    /// <summary>
+    /// 選択されたアイテムを削除
+    /// </summary>
+    private void DeleteSelectedItems()
+    {
+        if (SelectedItems.Count == 0)
+            return;
+
+        // フォルダを除外
+        var filesToDelete = SelectedItems.Where(item => !item.IsFolder).ToList();
+        
+        if (filesToDelete.Count == 0)
+        {
+            MessageBox.Show(
+                "削除可能なファイルが選択されていません。",
+                "情報",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        // 確認ダイアログ
+        var message = filesToDelete.Count == 1
+            ? $"'{filesToDelete[0].FileName}' をゴミ箱に移動しますか?"
+            : $"{filesToDelete.Count}個のファイルをゴミ箱に移動しますか?\n\n" +
+              string.Join("\n", filesToDelete.Take(5).Select(f => f.FileName)) +
+              (filesToDelete.Count > 5 ? $"\n... 他 {filesToDelete.Count - 5}個" : "");
+
+        var result = MessageBox.Show(
+            message,
+            "削除確認",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        // 削除処理
+        var successCount = 0;
+        var failedFiles = new List<string>();
+
+        foreach (var item in filesToDelete)
+        {
+            try
+            {
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    item.FilePath,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+
+                // リストから削除
+                _imageFiles.Remove(item.FilePath);
+                ThumbnailItems.Remove(item);
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                failedFiles.Add($"{item.FileName}: {ex.Message}");
+            }
+        }
+
+        // 結果表示
+        TotalImages = _imageFiles.Count;
+        
+        if (failedFiles.Count > 0)
+        {
+            var errorMessage = $"{successCount}個のファイルを削除しました。\n\n" +
+                             $"以下の{failedFiles.Count}個のファイルの削除に失敗しました:\n" +
+                             string.Join("\n", failedFiles.Take(5)) +
+                             (failedFiles.Count > 5 ? $"\n... 他 {failedFiles.Count - 5}個" : "");
+            MessageBox.Show(errorMessage, "削除結果", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        else
+        {
+            StatusText = $"{successCount}個のファイルを削除しました";
+        }
+
+        // 選択をクリア
+        SelectedItems.Clear();
+
+        // 画像表示を更新
+        if (_imageFiles.Count > 0)
+        {
+            if (_internalImageIndex >= _imageFiles.Count)
+                _internalImageIndex = _imageFiles.Count - 1;
+            
+            if (_internalImageIndex >= 0)
+                _ = LoadCurrentImageAsync();
+        }
+        else
+        {
+            CurrentImageSource = null;
+            CurrentImageInfo = null;
+            StatusText = "画像がありません";
         }
     }
 
@@ -765,5 +975,13 @@ public partial class MainViewModel : ObservableObject
                 StatusText = $"{value.FileName} は画像ファイルではありません";
             }
         }
+    }
+
+    /// <summary>
+    /// 画像ソース変更時
+    /// </summary>
+    partial void OnCurrentImageSourceChanged(BitmapSource? value)
+    {
+        UpdateImageDisplaySize();
     }
 }

@@ -115,14 +115,40 @@ KoExplorer/
 
 ## 技術スタック
 
-- **フレームワーク**: WPF (.NET 9.0)
+### フレームワーク・言語
+- **UI フレームワーク**: WPF (Windows Presentation Foundation)
+- **.NET バージョン**: .NET 9.0
 - **言語**: C# 12
-- **アーキテクチャ**: MVVM パターン
-- **画像処理**:
-  - SixLabors.ImageSharp: 汎用画像処理
-  - Svg.Skia / SkiaSharp: SVG対応
-- **依存性注入**: Microsoft.Extensions.DependencyInjection
-- **MVVM支援**: CommunityToolkit.Mvvm
+- **プラットフォーム**: Windows 10/11 (x64)
+
+### アーキテクチャ・パターン
+- **設計パターン**: MVVM (Model-View-ViewModel)
+- **MVVM ライブラリ**: [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 8.3.2
+  - ObservableObject, RelayCommand などの MVVM 支援機能
+  - ソースジェネレーターによるボイラープレートコード削減
+- **依存性注入**: [Microsoft.Extensions.DependencyInjection](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) 9.0.0
+  - サービスのライフタイム管理
+  - 疎結合な設計
+
+### 画像処理
+- **汎用画像処理**: [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) 3.1.12
+  - JPG, PNG, WebP, BMP, GIF, TIFF などの読み込み
+  - サムネイル生成
+  - 画像メタデータの取得
+- **SVG レンダリング**: [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia) 2.0.0.1
+  - ベクター画像 (SVG) のレンダリング
+- **2D グラフィックス**: [SkiaSharp](https://github.com/mono/SkiaSharp) 2.88.8
+  - 高性能な 2D グラフィックスエンジン
+  - WPF 統合 (SkiaSharp.Views.WPF)
+
+### ユーティリティ
+- **ファイル操作**: Microsoft.VisualBasic 10.3.0
+  - ゴミ箱への移動機能 (FileSystem.DeleteFile)
+
+### 開発ツール
+- **IDE**: Visual Studio 2022 以降
+- **ビルドシステム**: MSBuild / .NET CLI
+- **パッケージ管理**: NuGet
 
 ## 開発状況
 
