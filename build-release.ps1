@@ -1,5 +1,5 @@
-# KoExplorer Release Build Script
-# Creates a distribution ZIP file
+# KoExplorer デュアルリリースビルドスクリプト
+# 2つのビルドを作成: フレームワーク依存版（軽量）と自己完結型版（単一EXE）
 
 param(
     [string]$Version = "0.1.0-alpha",
@@ -9,20 +9,26 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================" -ForegroundColor Green
-Write-Host "  KoExplorer Release Build" -ForegroundColor Green
+Write-Host "  KoExplorer Dual Release Build" -ForegroundColor Green
 Write-Host "  Version: $Version" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
 
-# Project paths
-$projectRoot = $PSScriptRoot
-$distFolder = Join-Path $projectRoot "dist"
-$publishFolder = Join-Path $projectRoot "bin\Release\net9.0-windows\win-x64\publish"
+# 変数定義
+$ProjectFile = "KoExplorer.csproj"
+$DistDir = "dist"
+$TempFrameworkDir = "$DistDir\temp_framework"
+$TempStandaloneDir = "$DistDir\temp_standalone"
+$FrameworkZipFile = "$DistDir\KoExplorer-v$Version-framework-dependent-release.zip"
+$StandaloneZipFile = "$DistDir\KoExplorer-v$Version-standalone-release.zip"
+
+# ビルド開始時刻を記録
+$BuildStartTime = Get-Date
 
 # Create dist folder
-if (-not (Test-Path $distFolder)) {
+if (-not (Test-Path $DistDir)) {
     Write-Host "Creating dist folder..." -ForegroundColor Cyan
-    New-Item -ItemType Directory -Path $distFolder | Out-Null
+    New-Item -ItemType Directory -Path $DistDir | Out-Null
 }
 
 # Clean build option
@@ -31,6 +37,22 @@ if ($Clean) {
     dotnet clean -c Release
     if (Test-Path "bin") { Remove-Item -Recurse -Force "bin" }
     if (Test-Path "obj") { Remove-Item -Recurse -Force "obj" }
+}
+
+# 既存のZIPファイルを削除
+if (Test-Path $FrameworkZipFile) {
+    Remove-Item -Path $FrameworkZipFile -Force
+}
+if (Test-Path $StandaloneZipFile) {
+    Remove-Item -Path $StandaloneZipFile -Force
+}
+
+# 一時ディレクトリを削除
+if (Test-Path $TempFrameworkDir) {
+    Remove-Item -Path $TempFrameworkDir -Recurse -Force
+}
+if (Test-Path $TempStandaloneDir) {
+    Remove-Item -Path $TempStandaloneDir -Recurse -Force
 }
 
 # Step 1: Restore NuGet packages
@@ -43,109 +65,135 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Package restore completed" -ForegroundColor Green
 Write-Host ""
 
-# Step 2: Build Release
-Write-Host "Building Release..." -ForegroundColor Cyan
-dotnet build -c Release --no-restore
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "Build completed" -ForegroundColor Green
-Write-Host ""
-
-# Step 3: Publish (framework-dependent)
-Write-Host "Publishing application..." -ForegroundColor Cyan
-Write-Host "  (.NET Runtime excluded - framework-dependent)" -ForegroundColor Yellow
-dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Publish failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "Publish completed" -ForegroundColor Green
-Write-Host ""
-
-# Step 4: Remove unnecessary files
-Write-Host "Removing unnecessary files..." -ForegroundColor Cyan
-$filesToRemove = @("*.pdb", "*.xml", "*.deps.json")
-
-foreach ($pattern in $filesToRemove) {
-    $files = Get-ChildItem -Path $publishFolder -Filter $pattern -Recurse -ErrorAction SilentlyContinue
-    foreach ($file in $files) {
-        Remove-Item $file.FullName -Force
-        Write-Host "  Removed: $($file.Name)" -ForegroundColor DarkGray
+# ========================================
+# フレームワーク依存ビルド（軽量版）
+# ========================================
+Write-Host "Building Framework-Dependent (Lightweight)..." -ForegroundColor Cyan
+$frameworkBuildSuccess = $false
+try {
+    Write-Host "  (.NET Runtime excluded - framework-dependent)" -ForegroundColor Gray
+    dotnet publish $ProjectFile `
+        -c Release `
+        -r win-x64 `
+        --self-contained false `
+        -p:PublishSingleFile=false `
+        -o $TempFrameworkDir
+    
+    if ($LASTEXITCODE -eq 0) {
+        # Remove unnecessary files
+        $filesToRemove = @("*.pdb", "*.xml", "*.deps.json")
+        foreach ($pattern in $filesToRemove) {
+            $files = Get-ChildItem -Path $TempFrameworkDir -Filter $pattern -Recurse -ErrorAction SilentlyContinue
+            foreach ($file in $files) {
+                Remove-Item $file.FullName -Force
+            }
+        }
+        
+        # Copy README
+        if (Test-Path "README.md") {
+            Copy-Item "README.md" "$TempFrameworkDir\README.md" -Force
+        }
+        
+        # Create ZIP
+        Compress-Archive -Path "$TempFrameworkDir\*" -DestinationPath $FrameworkZipFile -CompressionLevel Optimal
+        Write-Host "  ✓ Framework-dependent build completed" -ForegroundColor Green
+        $frameworkBuildSuccess = $true
+    } else {
+        throw "dotnet publish failed"
     }
+} catch {
+    Write-Host "  ✗ Framework-dependent build failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+# ========================================
+# 自己完結型ビルド（単一EXE版）
+# ========================================
+Write-Host ""
+Write-Host "Building Self-Contained (Single EXE)..." -ForegroundColor Cyan
+$standaloneBuildSuccess = $false
+try {
+    Write-Host "  (.NET Runtime included - standalone)" -ForegroundColor Gray
+    dotnet publish $ProjectFile `
+        -c Release `
+        -r win-x64 `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $TempStandaloneDir
+    
+    if ($LASTEXITCODE -eq 0) {
+        # Copy README
+        if (Test-Path "README.md") {
+            Copy-Item "README.md" "$TempStandaloneDir\README.md" -Force
+        }
+        
+        # Create ZIP
+        Compress-Archive -Path "$TempStandaloneDir\*" -DestinationPath $StandaloneZipFile -CompressionLevel Optimal
+        Write-Host "  ✓ Self-contained build completed" -ForegroundColor Green
+        $standaloneBuildSuccess = $true
+    } else {
+        throw "dotnet publish failed"
+    }
+} catch {
+    Write-Host "  ✗ Self-contained build failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+# 両方のビルドが失敗した場合はエラー終了
+if (-not $frameworkBuildSuccess -and -not $standaloneBuildSuccess) {
+    Write-Error "Both builds failed"
+    exit 1
+}
+
+# Cleanup temporary directories
+Write-Host ""
+Write-Host "Cleaning up temporary files..." -ForegroundColor Cyan
+if (Test-Path $TempFrameworkDir) {
+    Remove-Item -Path $TempFrameworkDir -Recurse -Force
+}
+if (Test-Path $TempStandaloneDir) {
+    Remove-Item -Path $TempStandaloneDir -Recurse -Force
 }
 Write-Host "Cleanup completed" -ForegroundColor Green
 Write-Host ""
 
-# Step 5: Create ZIP file
-$zipFileName = "KoExplorer-v$Version-win-x64-release.zip"
-$zipFilePath = Join-Path $distFolder $zipFileName
+# ビルド結果のサマリー表示
+$BuildEndTime = Get-Date
+$BuildDuration = $BuildEndTime - $BuildStartTime
+$BuildTimeSeconds = [math]::Round($BuildDuration.TotalSeconds, 1)
 
-Write-Host "Creating ZIP file..." -ForegroundColor Cyan
-Write-Host "  Output: $zipFilePath" -ForegroundColor Yellow
-
-# Remove existing ZIP file
-if (Test-Path $zipFilePath) {
-    Remove-Item $zipFilePath -Force
-}
-
-# Create ZIP file
-Compress-Archive -Path "$publishFolder\*" -DestinationPath $zipFilePath -CompressionLevel Optimal
-
-if (Test-Path $zipFilePath) {
-    $zipSize = (Get-Item $zipFilePath).Length / 1MB
-    $zipSizeRounded = [math]::Round($zipSize, 2)
-    Write-Host "ZIP file created successfully" -ForegroundColor Green
-    Write-Host "  File name: $zipFileName" -ForegroundColor Green
-    Write-Host "  Size: $zipSizeRounded MB" -ForegroundColor Green
-}
-else {
-    Write-Host "Failed to create ZIP file" -ForegroundColor Red
-    exit 1
-}
-Write-Host ""
-
-# Step 6: Display distribution file contents
-Write-Host "Distribution file contents:" -ForegroundColor Cyan
-$publishFiles = Get-ChildItem -Path $publishFolder -Recurse -File
-$totalSize = ($publishFiles | Measure-Object -Property Length -Sum).Sum / 1MB
-$totalSizeRounded = [math]::Round($totalSize, 2)
-Write-Host "  File count: $($publishFiles.Count)" -ForegroundColor Yellow
-Write-Host "  Total size: $totalSizeRounded MB" -ForegroundColor Yellow
-Write-Host ""
-
-# Display main files
-Write-Host "Main files:" -ForegroundColor Cyan
-$mainFiles = Get-ChildItem -Path $publishFolder -File | Where-Object { 
-    $_.Extension -in @('.exe', '.dll', '.json', '.ico') 
-} | Sort-Object Length -Descending | Select-Object -First 10
-
-foreach ($file in $mainFiles) {
-    $size = $file.Length / 1KB
-    $sizeRounded = [math]::Round($size, 2)
-    $fileName = $file.Name.PadRight(40)
-    Write-Host "  $fileName $sizeRounded KB" -ForegroundColor DarkGray
-}
-Write-Host ""
-
-# Completion message
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host "  Release build completed!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Distribution file:" -ForegroundColor Cyan
-Write-Host "  $zipFilePath" -ForegroundColor White
-Write-Host ""
-Write-Host "Note:" -ForegroundColor Yellow
-Write-Host "  This build requires .NET 9.0 Runtime" -ForegroundColor Yellow
-Write-Host "  Users can install it from:" -ForegroundColor Yellow
-Write-Host "  https://dotnet.microsoft.com/download/dotnet/9.0" -ForegroundColor White
-Write-Host ""
 
-# Open dist folder
-Write-Host "Open dist folder? (Y/N)" -ForegroundColor Cyan
-$response = Read-Host
-if ($response -eq 'Y' -or $response -eq 'y') {
-    Start-Process explorer.exe -ArgumentList $distFolder
+# フレームワーク依存ビルドの情報
+if ($frameworkBuildSuccess -and (Test-Path $FrameworkZipFile)) {
+    $frameworkZipInfo = Get-Item $FrameworkZipFile
+    $frameworkZipHash = Get-FileHash $FrameworkZipFile -Algorithm SHA256
+    
+    Write-Host "📦 Framework-Dependent Build (Lightweight):" -ForegroundColor Cyan
+    Write-Host "   File: $($frameworkZipInfo.Name)" -ForegroundColor White
+    Write-Host "   Size: $([math]::Round($frameworkZipInfo.Length / 1MB, 2)) MB" -ForegroundColor White
+    Write-Host "   SHA256: $($frameworkZipHash.Hash)" -ForegroundColor Gray
+    Write-Host "   ⚠ Requires .NET 9.0 Desktop Runtime" -ForegroundColor Yellow
+    Write-Host ""
 }
+
+# 自己完結型ビルドの情報
+if ($standaloneBuildSuccess -and (Test-Path $StandaloneZipFile)) {
+    $standaloneZipInfo = Get-Item $StandaloneZipFile
+    $standaloneZipHash = Get-FileHash $StandaloneZipFile -Algorithm SHA256
+    
+    Write-Host "📦 Self-Contained Build (Single EXE):" -ForegroundColor Cyan
+    Write-Host "   File: $($standaloneZipInfo.Name)" -ForegroundColor White
+    Write-Host "   Size: $([math]::Round($standaloneZipInfo.Length / 1MB, 2)) MB" -ForegroundColor White
+    Write-Host "   SHA256: $($standaloneZipHash.Hash)" -ForegroundColor Gray
+    Write-Host "   ✓ No .NET Runtime installation required" -ForegroundColor Green
+    Write-Host ""
+}
+
+Write-Host "⏱ Total build time: $BuildTimeSeconds seconds" -ForegroundColor White
+Write-Host ""
+Write-Host "Distribution files:" -ForegroundColor Cyan
+Write-Host "  $DistDir\" -ForegroundColor White
+Write-Host ""
