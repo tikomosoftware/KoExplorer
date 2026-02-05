@@ -143,21 +143,16 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 - 初回表示時はサムネイル生成に時間がかかる場合があります
 - SSDの使用を推奨します
 
-## フィードバック・バグ報告
-
-問題や改善提案がある場合は、[Issues](../../issues)ページでお知らせください。
-
 ## ライセンス
 
 MIT License
 
 Copyright (c) 2026 tikomo software
 
-## 開発者向け情報
+## 📞 サポート
 
-開発に参加したい方は、以下のドキュメントをご覧ください：
-- [開発者向けREADME](README_DEV.md)
-- [ビルド手順](BUILD.md)
+- **E-Mail**: tikomo@gmail.com
+- **HP**: https://tikomosoftware.github.io
 
 ---
 
