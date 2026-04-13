@@ -1,4 +1,4 @@
-<Window x:Class="KoExplorer.MainWindow"
+﻿<Window x:Class="KoExplorer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -6,7 +6,7 @@
         xmlns:local="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:vm="clr-namespace:KoExplorer.ViewModels"
         mc:Ignorable="d"
-        Title="KoExplorer v1.0.0" 
+        Title="KoExplorer v1.1.0" 
         Height="800" Width="1400"
         MinHeight="600" MinWidth="1000"
         WindowStartupLocation="CenterScreen"
@@ -36,6 +36,7 @@
         <KeyBinding Modifiers="Ctrl" Key="OemMinus" Command="{Binding ZoomOutCommand}"/>
         <KeyBinding Modifiers="Ctrl" Key="D0" Command="{Binding ActualSizeCommand}"/>
         <KeyBinding Modifiers="Ctrl" Key="F" Command="{Binding FitToWindowCommand}"/>
+        <KeyBinding Key="F5" Command="{Binding RefreshFolderTreeCommand}"/>
     </Window.InputBindings>
 
     <Grid>
@@ -44,6 +45,8 @@
             <!-- メニューバー -->
             <RowDefinition Height="Auto"/>
             <!-- ツールバー -->
+            <RowDefinition Height="Auto"/>
+            <!-- アドレスバー -->
             <RowDefinition Height="*"/>
             <!-- メインコンテンツ -->
             <RowDefinition Height="Auto"/>
@@ -84,6 +87,7 @@
                 <MenuItem Header="プレビュー(_P)" Command="{Binding TogglePreviewCommand}" IsCheckable="True" IsChecked="{Binding IsPreviewVisible}"/>
                 <MenuItem Header="サムネイルパネル(_T)" Command="{Binding ToggleThumbnailPanelCommand}" InputGestureText="F3" IsCheckable="True" IsChecked="{Binding IsThumbnailPanelVisible}"/>
                 <MenuItem Header="フォルダツリー(_R)" IsCheckable="True" IsChecked="{Binding IsFolderTreeVisible}"/>
+                <MenuItem Header="フォルダツリーを更新(_U)" Command="{Binding RefreshFolderTreeCommand}" InputGestureText="F5"/>
                 <Separator/>
                 <MenuItem Header="背景色(_B)">
                     <MenuItem Header="白" Command="{Binding SetBackgroundCommand}" CommandParameter="White" IsCheckable="True" IsChecked="{Binding IsBackgroundWhite}"/>
@@ -218,9 +222,15 @@
                       Fill="#0078D4" Stretch="Uniform" Width="16" Height="16"/>
             </Button>
             <Separator/>
-            <Button Command="{Binding DeleteImageCommand}" ToolTip="削除 (Delete)" Padding="8,6">
+            <Button Command="{Binding DeleteImageCommand}" ToolTip="削除 (Delete) - チェック済み優先、なければ選択中" Padding="8,6">
                 <Path Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" 
                       Fill="#D32F2F" Stretch="Uniform" Width="16" Height="16"/>
+            </Button>
+            <Separator/>
+            <!-- チェック済み移動 -->
+            <Button Command="{Binding MoveCheckedItemsCommand}" ToolTip="チェックしたファイルを移動" Padding="8,6">
+                <Path Data="M14,18V15H10V11H14V8L19,13L14,18M2,6V8H16V6H2M2,10V12H10V10H2M2,14V16H10V14H2Z"
+                      Fill="#0078D4" Stretch="Uniform" Width="16" Height="16"/>
             </Button>
             <Separator Visibility="{Binding IsDebugMode, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <!-- テスト用ボタン（デバッグモードのみ） -->
@@ -234,12 +244,44 @@
             </Button>
         </ToolBar>
 
+        <!-- アドレスバー -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource ToolBarBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="6,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="📂" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Grid.Column="1"
+                         x:Name="AddressBar"
+                         Text="{Binding AddressBarPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center"
+                         FontSize="13"
+                         BorderThickness="1"
+                         Padding="4,3"
+                         KeyDown="AddressBar_KeyDown"
+                         GotFocus="AddressBar_GotFocus"/>
+                <Button Grid.Column="2"
+                        Content="→"
+                        Margin="4,0,0,0"
+                        Padding="8,3"
+                        FontSize="13"
+                        ToolTip="移動 (Enter)"
+                        Click="AddressBarGo_Click"/>
+            </Grid>
+        </Border>
+
         <!-- メインコンテンツ -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3" x:Name="MainContentGrid">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250" MinWidth="150"/>
                 <!-- フォルダツリー -->
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="5"/>
                 <!-- スプリッター -->
                 <ColumnDefinition Width="*"/>
                 <!-- プレビューエリア -->
@@ -247,7 +289,6 @@
 
             <!-- フォルダツリー -->
             <Border Grid.Column="0" Grid.Row="0" Grid.RowSpan="3" 
-                    Width="250"
                     MinWidth="150"
                     BorderBrush="{DynamicResource BorderBrush}" 
                     BorderThickness="0,0,1,0"
@@ -261,7 +302,18 @@
                     
                     <!-- ヘッダー -->
                     <Border Grid.Row="0" Background="{DynamicResource ToolBarBackgroundBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <TextBlock Text="フォルダ" FontWeight="SemiBold" FontSize="13"/>
+                        <Grid>
+                            <TextBlock Text="フォルダ" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                            <Button HorizontalAlignment="Right"
+                                    Command="{Binding RefreshFolderTreeCommand}"
+                                    ToolTip="フォルダツリーを更新 (F5)"
+                                    Padding="4"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                      Fill="#424242" Stretch="Uniform" Width="14" Height="14"/>
+                            </Button>
+                        </Grid>
                     </Border>
                     
                     <!-- TreeView -->
@@ -271,7 +323,10 @@
                               SelectedItemChanged="FolderTreeView_SelectedItemChanged"
                               Background="Transparent"
                               BorderThickness="0"
-                              Padding="5">
+                              Padding="5"
+                              AllowDrop="True"
+                              DragOver="FolderTreeView_DragOver"
+                              Drop="FolderTreeView_Drop">
                         <TreeView.Resources>
                             <!-- フォルダアイコンのスタイル -->
                             <Style x:Key="FolderIcon" TargetType="TextBlock">
@@ -359,8 +414,46 @@
                           BorderThickness="0"
                           RowHeight="24"
                           MouseDoubleClick="DataGrid_MouseDoubleClick"
+                          PreviewMouseRightButtonDown="FileList_PreviewMouseRightButtonDown"
+                          PreviewMouseLeftButtonDown="DataGrid_PreviewMouseLeftButtonDown"
+                          PreviewMouseLeftButtonUp="DataGrid_PreviewMouseLeftButtonUp"
+                          PreviewMouseMove="DataGrid_PreviewMouseMove"
                           Visibility="{Binding IsDetailViewMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="AllowDrop" Value="True"/>
+                            <EventSetter Event="DragOver" Handler="DataGridRow_DragOver"/>
+                            <EventSetter Event="Drop" Handler="DataGridRow_Drop"/>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="開く" Click="ContextMenu_Open_Click"/>
+                            <MenuItem Header="エクスプローラーで開く" Command="{Binding OpenInExplorerCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="切り取り" Click="ContextMenu_Cut_Click"/>
+                            <MenuItem Header="コピー" Command="{Binding CopyImageCommand}"/>
+                            <MenuItem Header="パスをコピー" Command="{Binding CopyPathCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="名前の変更" Command="{Binding RenameItemCommand}"/>
+                            <MenuItem Header="削除" Command="{Binding DeleteImageCommand}"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Columns>
+                        <DataGridTemplateColumn Width="36" CanUserResize="False" CanUserSort="False">
+                            <DataGridTemplateColumn.Header>
+                                <CheckBox ToolTip="全選択/全解除"
+                                          IsChecked="{x:Null}"
+                                          Click="CheckAllHeader_Click"/>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="名前" Width="*" MinWidth="200">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -369,9 +462,11 @@
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Text" Value="📄"/>
+                                                    <Setter Property="Foreground" Value="#42A5F5"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsFolder}" Value="True">
                                                             <Setter Property="Text" Value="📁"/>
+                                                            <Setter Property="Foreground" Value="#FFA726"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -541,33 +636,33 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"
-                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick">
+                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick"
+                                     PreviewMouseLeftButtonDown="FileList_PreviewMouseLeftButtonDown"
+                                     MouseMove="FileList_MouseMove"
+                                     PreviewMouseRightButtonDown="FileList_PreviewMouseRightButtonDown"
+                                     AllowDrop="True"
+                                     DragOver="ThumbnailList_DragOver"
+                                     Drop="ThumbnailList_Drop">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="開く" Click="ContextMenu_Open_Click"/>
+                                        <MenuItem Header="エクスプローラーで開く" Command="{Binding OpenInExplorerCommand}"/>
+                                        <Separator/>
+                                        <MenuItem Header="切り取り" Click="ContextMenu_Cut_Click"/>
+                                        <MenuItem Header="コピー" Command="{Binding CopyImageCommand}"/>
+                                        <MenuItem Header="パスをコピー" Command="{Binding CopyPathCommand}"/>
+                                        <Separator/>
+                                        <MenuItem Header="名前の変更" Command="{Binding RenameItemCommand}"/>
+                                        <MenuItem Header="削除" Command="{Binding DeleteImageCommand}"/>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
                                 <ListBox.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal"/>
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="5" 
-                                                Padding="5"
-                                                Background="{DynamicResource ThumbnailBackgroundBrush}"
-                                                BorderBrush="{DynamicResource ThumbnailBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="3">
-                                            <StackPanel Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}">
-                                                <Image Source="{Binding ThumbnailSource}" 
-                                                       Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Height="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Stretch="Uniform"/>
-                                                <TextBlock Text="{Binding FileName}" 
-                                                          TextTrimming="CharacterEllipsis"
-                                                          TextAlignment="Center"
-                                                          Margin="0,5,0,0"
-                                                          ToolTip="{Binding FileName}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
+                                    <StaticResource ResourceKey="ThumbnailItemTemplate"/>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Grid>
@@ -622,33 +717,19 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"
-                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick">
+                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick"
+                                     PreviewMouseLeftButtonDown="FileList_PreviewMouseLeftButtonDown"
+                                     MouseMove="FileList_MouseMove"
+                                     AllowDrop="True"
+                                     DragOver="ThumbnailList_DragOver"
+                                     Drop="ThumbnailList_Drop">
                                 <ListBox.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal"/>
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="5" 
-                                                Padding="5"
-                                                Background="{DynamicResource ThumbnailBackgroundBrush}"
-                                                BorderBrush="{DynamicResource ThumbnailBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="3">
-                                            <StackPanel Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}">
-                                                <Image Source="{Binding ThumbnailSource}" 
-                                                       Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Height="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Stretch="Uniform"/>
-                                                <TextBlock Text="{Binding FileName}" 
-                                                          TextTrimming="CharacterEllipsis"
-                                                          TextAlignment="Center"
-                                                          Margin="0,5,0,0"
-                                                          ToolTip="{Binding FileName}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
+                                    <StaticResource ResourceKey="ThumbnailItemTemplate"/>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Grid>
@@ -703,33 +784,19 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      Background="Transparent"
                                      BorderThickness="0"
-                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick">
+                                     MouseDoubleClick="ThumbnailListBox_MouseDoubleClick"
+                                     PreviewMouseLeftButtonDown="FileList_PreviewMouseLeftButtonDown"
+                                     MouseMove="FileList_MouseMove"
+                                     AllowDrop="True"
+                                     DragOver="ThumbnailList_DragOver"
+                                     Drop="ThumbnailList_Drop">
                                 <ListBox.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal"/>
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="5" 
-                                                Padding="5"
-                                                Background="{DynamicResource ThumbnailBackgroundBrush}"
-                                                BorderBrush="{DynamicResource ThumbnailBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="3">
-                                            <StackPanel Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}">
-                                                <Image Source="{Binding ThumbnailSource}" 
-                                                       Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Height="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                       Stretch="Uniform"/>
-                                                <TextBlock Text="{Binding FileName}" 
-                                                          TextTrimming="CharacterEllipsis"
-                                                          TextAlignment="Center"
-                                                          Margin="0,5,0,0"
-                                                          ToolTip="{Binding FileName}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
+                                    <StaticResource ResourceKey="ThumbnailItemTemplate"/>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Grid>
@@ -739,7 +806,7 @@
         </Grid>
 
         <!-- ステータスバー -->
-        <StatusBar Grid.Row="3" Background="{DynamicResource StatusBarBackgroundBrush}">
+        <StatusBar Grid.Row="4" Background="{DynamicResource StatusBarBackgroundBrush}">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusText}"/>
             </StatusBarItem>
@@ -761,7 +828,7 @@
         </StatusBar>
 
         <!-- デバッグログエリア（デバッグモードのみ） -->
-        <Border Grid.Row="4" 
+        <Border Grid.Row="5" 
                 Height="150"
                 Background="#FFF9C4" 
                 BorderBrush="#FBC02D" 

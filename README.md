@@ -1,8 +1,8 @@
-﻿# KoExplorer v1.0.0
+﻿# KoExplorer v1.1.0
 
 Windows向けエクスプローラー風イメージビューアー
 
-![KoExplorer](https://img.shields.io/badge/version-1.0.0-blue)
+![KoExplorer](https://img.shields.io/badge/version-1.1.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![.NET](https://img.shields.io/badge/.NET-9.0-purple)
 
@@ -29,9 +29,12 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 
 ### 🎯 使いやすいインターフェース
 - エクスプローラー風の3ペイン構成
+- アドレスバーでパスを直接入力して移動
 - フォルダツリーで素早くフォルダ移動
 - 詳細表示とサムネイル表示の切り替え
-- 複数ファイルの一括削除
+- チェックボックスによる複数ファイルの一括操作（削除・移動）
+- 右クリックコンテキストメニュー（開く、名前変更、削除など）
+- ドラッグ&ドロップによるファイル移動
 
 ### 🔍 豊富なズーム機能
 - 実寸表示
@@ -55,7 +58,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 [Releases](../../releases)ページから、環境に応じたパッケージをダウンロードしてください。
 
 ### .NET同梱版（推奨）
-**ファイル名**: `KoExplorer-v1.0.0-win-x64.zip`
+**ファイル名**: `KoExplorer-v1.1.0-win-x64.zip`
 
 - .NET Runtimeが含まれているため、別途インストール不要
 - ファイルサイズが大きい（約70MB）
@@ -67,7 +70,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 3. `KoExplorer.exe`を実行
 
 ### .NET非同梱版（軽量版）
-**ファイル名**: `KoExplorer-v1.0.0-framework-dependent.zip`
+**ファイル名**: `KoExplorer-v1.1.0-framework-dependent.zip`
 
 - .NET Runtimeが別途必要
 - ファイルサイズが小さい（約1MB）
@@ -113,6 +116,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 |------|------|
 | `F11` | フルスクリーン切り替え |
 | `F3` | サムネイルパネル表示切り替え |
+| `F5` | フォルダツリーを更新 |
 
 #### ファイル操作
 | キー | 機能 |
@@ -124,7 +128,8 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 | `Ctrl` + `O` | 既定のアプリで開く |
 
 ### マウス操作
-- **画像のドラッグ**: パン（移動）
+- **画像のドラッグ**: ファイルの移動（左ペインのツリーや右ペイン内フォルダへドロップ）
+- **Ctrl + 画像のドラッグ**: パン（プレビュー画像のスクロール）
 - **マウスホイール**: 画像切り替え
 - **Ctrl + マウスホイール**: ズーム
 - **ダブルクリック**: フォルダを開く

@@ -15,6 +15,36 @@
             <converters:FileTypeConverter x:Key="FileTypeConverter"/>
             <converters:FileSizeConverter x:Key="FileSizeConverter"/>
             <converters:BooleanAndToVisibilityConverter x:Key="BooleanAndToVisibilityConverter"/>
+
+            <!-- サムネイルアイテムの共通テンプレート（チェックボックス付き） -->
+            <DataTemplate x:Key="ThumbnailItemTemplate">
+                <Border Margin="5" 
+                        Padding="5"
+                        Background="{DynamicResource ThumbnailBackgroundBrush}"
+                        BorderBrush="{DynamicResource ThumbnailBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3">
+                    <StackPanel Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                        <Grid>
+                            <Image Source="{Binding ThumbnailSource}" 
+                                   Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   Height="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   Stretch="Uniform"/>
+                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Left"
+                                      VerticalAlignment="Top"
+                                      Margin="2"
+                                      Background="White"
+                                      Opacity="0.85"/>
+                        </Grid>
+                        <TextBlock Text="{Binding FileName}" 
+                                   TextTrimming="CharacterEllipsis"
+                                   TextAlignment="Center"
+                                   Margin="0,5,0,0"
+                                   ToolTip="{Binding FileName}"/>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

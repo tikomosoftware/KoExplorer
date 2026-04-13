@@ -358,27 +358,27 @@ jobs:
 
 1. **KoExplorer.csproj**
 ```xml
-<Version>1.0.0</Version>
+<Version>1.1.0</Version>
 ```
 
 2. **MainWindow.xaml**
 ```xml
-Title="KoExplorer v1.0.0"
+Title="KoExplorer v1.1.0"
 ```
 
 3. **MainViewModel.cs**
 ```csharp
-"KoExplorer v1.0.0\n\n..."
+"KoExplorer v1.1.0\n\n..."
 ```
 
 4. **build-release.ps1**
 ```powershell
-[string]$Version = "1.0.0"
+[string]$Version = "1.1.0"
 ```
 
 5. **README.md**
 ```markdown
-# KoExplorer v1.0.0
+# KoExplorer v1.1.0
 ```
 
 ### セマンティックバージョニング

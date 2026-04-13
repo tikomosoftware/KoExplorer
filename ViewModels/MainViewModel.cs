@@ -26,6 +26,10 @@ public partial class MainViewModel : ObservableObject
     private AppSettings _settings = new();
     private string _currentFolderPath = string.Empty; // 現在のフォルダパス
     private bool _isUpdatingSelection = false; // 選択更新中フラグ
+
+    /// <summary>現在のフォルダパス（アドレスバー用）</summary>
+    [ObservableProperty]
+    private string _addressBarPath = string.Empty;
     
     // ビューポートサイズ（ScrollViewerのサイズ）
     private double _viewportWidth = 800.0;
@@ -214,7 +218,7 @@ public partial class MainViewModel : ObservableObject
             ApplySettings();
 
             // フォルダツリー構築（非同期で実行、UIをブロックしない）
-            _ = Task.Run(async () =>
+            await Task.Run(async () =>
             {
                 try
                 {
@@ -230,13 +234,31 @@ public partial class MainViewModel : ObservableObject
                 }
             });
 
-            StatusText = "準備完了";
+            // 前回開いたフォルダを復元
+            if (!string.IsNullOrEmpty(_settings.LastOpenedFolder) &&
+                Directory.Exists(_settings.LastOpenedFolder))
+            {
+                await LoadFolderAsync(_settings.LastOpenedFolder);
+                StatusText = $"前回のフォルダを開きました: {_settings.LastOpenedFolder}";
+
+                // ツリーを該当フォルダまで展開（UIスレッドで実行）
+                OnRestoreTreeRequested?.Invoke(_settings.LastOpenedFolder);
+            }
+            else
+            {
+                StatusText = "準備完了";
+            }
         }
         catch (Exception ex)
         {
             StatusText = $"初期化エラー: {ex.Message}";
         }
     }
+
+    /// <summary>
+    /// 起動時のツリー展開要求イベント（MainWindowが購読する）
+    /// </summary>
+    public event Action<string>? OnRestoreTreeRequested;
 
     /// <summary>
     /// 設定を適用
@@ -298,6 +320,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         _currentFolderPath = folderPath;
+        AddressBarPath = folderPath;
         StatusText = "ファイルを読み込み中...";
 
         // 画像ファイル取得（画像表示用）
@@ -715,6 +738,133 @@ public partial class MainViewModel : ObservableObject
 
     #region File Commands
 
+    /// <summary>チェック済みアイテムを取得</summary>
+    public IReadOnlyList<ThumbnailItem> CheckedItems =>
+        ThumbnailItems.Where(i => i.IsChecked).ToList();
+
+    /// <summary>全アイテムをチェック</summary>
+    [RelayCommand]
+    private void CheckAll()
+    {
+        foreach (var item in ThumbnailItems.Where(i => i.FileName != ".."))
+            item.IsChecked = true;
+    }
+
+    /// <summary>全アイテムのチェックを解除</summary>
+    [RelayCommand]
+    private void UncheckAll()
+    {
+        foreach (var item in ThumbnailItems)
+            item.IsChecked = false;
+    }
+
+    /// <summary>チェック済みアイテムを削除</summary>
+    [RelayCommand]
+    private void DeleteCheckedItems()
+    {
+        var targets = CheckedItems.Where(i => !i.IsFolder).ToList();
+        if (targets.Count == 0)
+        {
+            StatusText = "削除対象のファイルがチェックされていません";
+            return;
+        }
+
+        var message = targets.Count == 1
+            ? $"'{targets[0].FileName}' をゴミ箱に移動しますか?"
+            : $"チェックした {targets.Count} 個のファイルをゴミ箱に移動しますか?\n\n" +
+              string.Join("\n", targets.Take(5).Select(f => f.FileName)) +
+              (targets.Count > 5 ? $"\n... 他 {targets.Count - 5}個" : "");
+
+        if (MessageBox.Show(message, "削除確認", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        var failed = new List<string>();
+        foreach (var item in targets)
+        {
+            try
+            {
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    item.FilePath,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                _imageFiles.Remove(item.FilePath);
+                ThumbnailItems.Remove(item);
+            }
+            catch (Exception ex) { failed.Add($"{item.FileName}: {ex.Message}"); }
+        }
+
+        TotalImages = _imageFiles.Count;
+        StatusText = failed.Count > 0
+            ? $"{targets.Count - failed.Count}個削除、{failed.Count}個失敗"
+            : $"{targets.Count}個のファイルを削除しました";
+
+        if (_imageFiles.Count == 0) { CurrentImageSource = null; CurrentImageInfo = null; }
+        else if (_internalImageIndex >= _imageFiles.Count) { _internalImageIndex = _imageFiles.Count - 1; _ = LoadCurrentImageAsync(); }
+    }
+
+    /// <summary>チェック済みアイテムをフォルダ選択ダイアログで移動</summary>
+    [RelayCommand]
+    private async Task MoveCheckedItemsAsync()
+    {
+        var targets = CheckedItems.Where(i => i.FileName != "..").ToList();
+        if (targets.Count == 0)
+        {
+            StatusText = "移動対象のアイテムがチェックされていません";
+            return;
+        }
+
+        // フォルダ選択ダイアログ
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "移動先フォルダを選択",
+            CheckFileExists = false,
+            CheckPathExists = true,
+            FileName = "フォルダ選択"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var destFolder = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+        if (string.IsNullOrEmpty(destFolder) || !Directory.Exists(destFolder)) return;
+        if (string.Equals(destFolder, _currentFolderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText = "移動先が現在のフォルダと同じです";
+            return;
+        }
+
+        await MoveItemsToFolderAsync(targets, destFolder);
+    }
+
+    /// <summary>指定アイテムリストを指定フォルダに移動（内部共通処理）</summary>
+    private async Task MoveItemsToFolderAsync(List<ThumbnailItem> items, string destinationFolder)
+    {
+        var failed = new List<string>();
+        foreach (var item in items)
+        {
+            try
+            {
+                var destPath = Path.Combine(destinationFolder, item.FileName);
+                if (item.IsFolder) Directory.Move(item.FilePath, destPath);
+                else File.Move(item.FilePath, destPath);
+                _imageFiles.Remove(item.FilePath);
+                await Application.Current.Dispatcher.InvokeAsync(() => ThumbnailItems.Remove(item));
+            }
+            catch (Exception ex) { failed.Add($"{item.FileName}: {ex.Message}"); }
+        }
+
+        TotalImages = _imageFiles.Count;
+        if (failed.Count > 0)
+            MessageBox.Show($"以下のアイテムの移動に失敗しました:\n{string.Join("\n", failed)}", "移動エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+        else
+            StatusText = $"{items.Count - failed.Count}個のアイテムを移動しました";
+
+        if (_internalImageIndex >= _imageFiles.Count)
+        {
+            _internalImageIndex = _imageFiles.Count - 1;
+            if (_internalImageIndex >= 0) await LoadCurrentImageAsync();
+            else { CurrentImageSource = null; CurrentImageInfo = null; }
+        }
+    }
+
     [RelayCommand]
     private void CopyImage()
     {
@@ -738,6 +888,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void DeleteImage()
     {
+        // チェック済みアイテムがあればそちらを優先
+        if (CheckedItems.Count > 0)
+        {
+            DeleteCheckedItems();
+            return;
+        }
+
         // 選択されたアイテムがある場合は複数削除
         if (SelectedItems.Count > 0)
         {
@@ -902,6 +1059,70 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void RenameItem()
+    {
+        var items = SelectedItems.Count > 0 ? SelectedItems.ToList()
+                  : SelectedThumbnail != null ? new List<ThumbnailItem> { SelectedThumbnail }
+                  : new List<ThumbnailItem>();
+
+        if (items.Count != 1)
+        {
+            StatusText = "名前の変更は1つのファイルを選択してください";
+            return;
+        }
+
+        var item = items[0];
+        var dialog = new RenameDialog(item.FileName);
+        if (dialog.ShowDialog() == true)
+        {
+            var newName = dialog.NewName;
+            var dir = Path.GetDirectoryName(item.FilePath) ?? string.Empty;
+            var newPath = Path.Combine(dir, newName);
+            try
+            {
+                if (item.IsFolder)
+                    Directory.Move(item.FilePath, newPath);
+                else
+                    File.Move(item.FilePath, newPath);
+
+                // リスト更新
+                var idx = _imageFiles.IndexOf(item.FilePath);
+                if (idx >= 0) _imageFiles[idx] = newPath;
+                item.FilePath = newPath;
+                item.FileName = newName;
+                StatusText = $"名前を変更しました: {newName}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"名前の変更に失敗しました: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 選択ファイルを指定フォルダに移動（D&Dから呼ばれる）
+    /// </summary>
+    public async Task MoveSelectedItemsToFolderAsync(string destinationFolder)
+    {
+        // チェック済みがあればそちらを優先、なければ選択アイテム
+        var items = CheckedItems.Count > 0 ? CheckedItems.ToList()
+                  : SelectedItems.Count > 0 ? SelectedItems.ToList()
+                  : SelectedThumbnail != null ? new List<ThumbnailItem> { SelectedThumbnail }
+                  : new List<ThumbnailItem>();
+
+        var filesToMove = items.Where(i => i.FileName != "..").ToList();
+        if (filesToMove.Count == 0) return;
+
+        var message = filesToMove.Count == 1
+            ? $"'{filesToMove[0].FileName}' を '{Path.GetFileName(destinationFolder)}' に移動しますか?"
+            : $"{filesToMove.Count}個のアイテムを '{Path.GetFileName(destinationFolder)}' に移動しますか?";
+
+        if (MessageBox.Show(message, "移動確認", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        await MoveItemsToFolderAsync(filesToMove, destinationFolder);
+    }
+
+    [RelayCommand]
     private void OpenWithDefaultApp()
     {
         if (_internalImageIndex >= 0 && _internalImageIndex < _imageFiles.Count)
@@ -919,6 +1140,24 @@ public partial class MainViewModel : ObservableObject
     private void OpenFolder()
     {
         LoadFolderCommand.Execute(null);
+    }
+
+    /// <summary>アドレスバーからパスを入力してナビゲート</summary>
+    [RelayCommand]
+    private async Task NavigateToAddressAsync()
+    {
+        var path = AddressBarPath.Trim();
+        if (string.IsNullOrEmpty(path)) return;
+
+        if (!Directory.Exists(path))
+        {
+            StatusText = $"フォルダが見つかりません: {path}";
+            AddressBarPath = _currentFolderPath; // 元のパスに戻す
+            return;
+        }
+
+        await LoadFolderAsync(path);
+        OnRestoreTreeRequested?.Invoke(path);
     }
 
     #endregion
@@ -987,6 +1226,28 @@ public partial class MainViewModel : ObservableObject
 
     #region Other Commands
 
+    /// <summary>
+    /// フォルダツリーをリフレッシュ
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshFolderTreeAsync()
+    {
+        StatusText = "フォルダツリーを更新中...";
+        try
+        {
+            var tree = await Task.Run(() => _fileSystemService.GetFolderTree());
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                FolderTree = tree;
+            });
+            StatusText = "フォルダツリーを更新しました";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"フォルダツリー更新エラー: {ex.Message}";
+        }
+    }
+
     [RelayCommand]
     private void OpenSettings()
     {
@@ -997,7 +1258,7 @@ public partial class MainViewModel : ObservableObject
     private void About()
     {
         MessageBox.Show(
-            "KoExplorer v1.0.0\n\nエクスプローラー風イメージビューアー\n\n© 2026 KoExplorer Team",
+            "KoExplorer v1.1.0\n\nエクスプローラー風イメージビューアー\n\n© 2026 KoExplorer Team",
             "バージョン情報",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

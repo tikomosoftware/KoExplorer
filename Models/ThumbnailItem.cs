@@ -61,4 +61,10 @@ public partial class ThumbnailItem : ObservableObject
     /// </summary>
     [ObservableProperty]
     private DateTime _modifiedDate;
+
+    /// <summary>
+    /// チェック状態
+    /// </summary>
+    [ObservableProperty]
+    private bool _isChecked;
 }

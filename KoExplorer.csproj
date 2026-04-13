@@ -9,7 +9,7 @@
     <ApplicationIcon>Resources\app-icon.ico</ApplicationIcon>
     <AssemblyName>KoExplorer</AssemblyName>
     <RootNamespace>KoExplorer</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>tikomo software</Authors>
     <Product>KoExplorer - エクスプローラー風イメージビューアー</Product>
     <Description>Windows向けエクスプローラータイプの高速イメージビューアー</Description>

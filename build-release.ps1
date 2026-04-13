@@ -2,7 +2,7 @@
 # 2つのビルドを作成: フレームワーク依存版（軽量）と自己完結型版（単一EXE）
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [switch]$Clean = $false
 )
 
@@ -21,6 +21,8 @@ $TempFrameworkDir = "$DistDir\temp_framework"
 $TempStandaloneDir = "$DistDir\temp_standalone"
 $FrameworkZipFile = "$DistDir\KoExplorer-v$Version-framework-dependent-release.zip"
 $StandaloneZipFile = "$DistDir\KoExplorer-v$Version-standalone-release.zip"
+$VectorZipFile = "$DistDir\KoExplorer-v$Version-vector.zip"
+$TempVectorDir = "$DistDir\temp_vector"
 
 # ビルド開始時刻を記録
 $BuildStartTime = Get-Date
@@ -98,10 +100,12 @@ try {
         Compress-Archive -Path "$TempFrameworkDir\*" -DestinationPath $FrameworkZipFile -CompressionLevel Optimal
         Write-Host "  ✓ Framework-dependent build completed" -ForegroundColor Green
         $frameworkBuildSuccess = $true
-    } else {
+    }
+    else {
         throw "dotnet publish failed"
     }
-} catch {
+}
+catch {
     Write-Host "  ✗ Framework-dependent build failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
@@ -131,11 +135,45 @@ try {
         Compress-Archive -Path "$TempStandaloneDir\*" -DestinationPath $StandaloneZipFile -CompressionLevel Optimal
         Write-Host "  ✓ Self-contained build completed" -ForegroundColor Green
         $standaloneBuildSuccess = $true
-    } else {
+    }
+    else {
         throw "dotnet publish failed"
     }
-} catch {
+}
+catch {
     Write-Host "  ✗ Self-contained build failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+# ========================================
+# Vector用パッケージ（同梱版 + Vector用README）
+# ========================================
+Write-Host ""
+Write-Host "Building Vector Package..." -ForegroundColor Cyan
+$vectorBuildSuccess = $false
+try {
+    if ($standaloneBuildSuccess) {
+        New-Item -ItemType Directory -Path $TempVectorDir | Out-Null
+        
+        # 自己完結型フォルダからコピー
+        Copy-Item -Path "$TempStandaloneDir\*" -Destination $TempVectorDir -Recurse -Force
+        
+        # README.mdを削除してREADME_VECTOR.mdをREADME.mdとして配置
+        if (Test-Path (Join-Path $TempVectorDir "README.md")) {
+            Remove-Item (Join-Path $TempVectorDir "README.md") -Force
+        }
+        if (Test-Path "README_VECTOR.md") {
+            Copy-Item "README_VECTOR.md" (Join-Path $TempVectorDir "README.md") -Force
+        }
+        
+        # Create ZIP
+        if (Test-Path $VectorZipFile) { Remove-Item $VectorZipFile }
+        Compress-Archive -Path "$TempVectorDir\*" -DestinationPath $VectorZipFile -CompressionLevel Optimal
+        Write-Host "  ✓ Vector package completed" -ForegroundColor Green
+        $vectorBuildSuccess = $true
+    }
+}
+catch {
+    Write-Host "  ✗ Vector package failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 # 両方のビルドが失敗した場合はエラー終了
@@ -152,6 +190,9 @@ if (Test-Path $TempFrameworkDir) {
 }
 if (Test-Path $TempStandaloneDir) {
     Remove-Item -Path $TempStandaloneDir -Recurse -Force
+}
+if (Test-Path $TempVectorDir) {
+    Remove-Item -Path $TempVectorDir -Recurse -Force
 }
 Write-Host "Cleanup completed" -ForegroundColor Green
 Write-Host ""
@@ -189,6 +230,17 @@ if ($standaloneBuildSuccess -and (Test-Path $StandaloneZipFile)) {
     Write-Host "   Size: $([math]::Round($standaloneZipInfo.Length / 1MB, 2)) MB" -ForegroundColor White
     Write-Host "   SHA256: $($standaloneZipHash.Hash)" -ForegroundColor Gray
     Write-Host "   ✓ No .NET Runtime installation required" -ForegroundColor Green
+    Write-Host ""
+}
+
+# Vectorパッケージの情報
+if ($vectorBuildSuccess -and (Test-Path $VectorZipFile)) {
+    $vectorZipInfo = Get-Item $VectorZipFile
+    
+    Write-Host "📦 Vector Package (Single EXE + Vector README):" -ForegroundColor Cyan
+    Write-Host "   File: $($vectorZipInfo.Name)" -ForegroundColor White
+    Write-Host "   Size: $([math]::Round($vectorZipInfo.Length / 1MB, 2)) MB" -ForegroundColor White
+    Write-Host "   ✓ Vector-specific README included" -ForegroundColor Green
     Write-Host ""
 }
 
