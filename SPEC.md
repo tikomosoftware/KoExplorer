@@ -1,4 +1,4 @@
-# KoExplorer 仕様書
+﻿# Image Explorer 仕様書
 
 バージョン: 1.1.0  
 最終更新: 2026-04-13
@@ -7,7 +7,7 @@
 
 ## 概要
 
-KoExplorerは、Windowsエクスプローラーのような使い慣れたインターフェースで画像を快適に閲覧・管理できる、Windows向け高速イメージビューアーです。
+Image Explorerは、Windowsエクスプローラーのような使い慣れたインターフェースで画像を快適に閲覧・管理できる、Windows向け高速イメージビューアーです。
 
 - **プラットフォーム**: Windows 10 (1809以降) / Windows 11
 - **フレームワーク**: WPF (.NET 9.0)
@@ -245,7 +245,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 
 ### 9. 設定
 
-設定ファイルの保存場所: `%APPDATA%\KoExplorer\settings.json`
+設定ファイルの保存場所: `%APPDATA%\ImageExplorer\settings.json`
 
 | 設定項目 | デフォルト値 | 説明 |
 |---------|------------|------|

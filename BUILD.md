@@ -1,4 +1,4 @@
-# KoExplorer - ビルド手順
+﻿# KoExplorer - ビルド手順
 
 このドキュメントでは、KoExplorerのビルド方法を詳しく説明します。
 
@@ -363,12 +363,12 @@ jobs:
 
 2. **MainWindow.xaml**
 ```xml
-Title="KoExplorer v1.1.0"
+Title="Image Explorer v1.1.0"
 ```
 
 3. **MainViewModel.cs**
 ```csharp
-"KoExplorer v1.1.0\n\n..."
+"Image Explorer v1.1.0\n\n..."
 ```
 
 4. **build-release.ps1**
@@ -378,7 +378,7 @@ Title="KoExplorer v1.1.0"
 
 5. **README.md**
 ```markdown
-# KoExplorer v1.1.0
+# Image Explorer v1.1.0
 ```
 
 ### セマンティックバージョニング

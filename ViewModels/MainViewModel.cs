@@ -1258,7 +1258,7 @@ public partial class MainViewModel : ObservableObject
     private void About()
     {
         MessageBox.Show(
-            "KoExplorer v1.1.0\n\nエクスプローラー風イメージビューアー\n\n© 2026 KoExplorer Team",
+            "Image Explorer v1.1.0\n\nエクスプローラー風イメージビューアー\n\n© 2026 Image Explorer Team",
             "バージョン情報",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

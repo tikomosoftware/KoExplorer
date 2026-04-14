@@ -1,14 +1,14 @@
-﻿# KoExplorer v1.1.0
+﻿# Image Explorer v1.1.0
 
 Windows向けエクスプローラー風イメージビューアー
 
-![KoExplorer](https://img.shields.io/badge/version-1.1.0-blue)
+![Image Explorer](https://img.shields.io/badge/version-1.1.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![.NET](https://img.shields.io/badge/.NET-9.0-purple)
 
 ## 概要
 
-KoExplorerは、Windowsエクスプローラーのような使い慣れたインターフェースで画像を快適に閲覧できる、高速イメージビューアーです。
+Image Explorerは、Windowsエクスプローラーのような使い慣れたインターフェースで画像を快適に閲覧できる、高速イメージビューアーです。
 
 ## 主な機能
 
@@ -58,7 +58,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 [Releases](../../releases)ページから、環境に応じたパッケージをダウンロードしてください。
 
 ### .NET同梱版（推奨）
-**ファイル名**: `KoExplorer-v1.1.0-win-x64.zip`
+**ファイル名**: `ImageExplorer-v1.1.0-win-x64.zip`
 
 - .NET Runtimeが含まれているため、別途インストール不要
 - ファイルサイズが大きい（約70MB）
@@ -70,7 +70,7 @@ KoExplorerは、Windowsエクスプローラーのような使い慣れたイン
 3. `KoExplorer.exe`を実行
 
 ### .NET非同梱版（軽量版）
-**ファイル名**: `KoExplorer-v1.1.0-framework-dependent.zip`
+**ファイル名**: `ImageExplorer-v1.1.0-framework-dependent.zip`
 
 - .NET Runtimeが別途必要
 - ファイルサイズが小さい（約1MB）
@@ -161,5 +161,5 @@ Copyright (c) 2026 tikomo software
 
 ---
 
-**KoExplorer** - シンプルで高速なイメージビューアー
+**Image Explorer** - シンプルで高速なイメージビューアー
 
